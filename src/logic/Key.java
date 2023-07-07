@@ -9,6 +9,7 @@ import java.awt.event.KeyListener;
 // Khai báo class Key và implement interface KeyListener
 public class Key implements KeyListener {
 
+    boolean moved = false;
     private Game2048 game; // Khai báo biến private game kiểu Game2048
 
     public Key(Game2048 game) {  // Khởi tạo constructor Key với tham số game kiểu Game2048
@@ -33,9 +34,10 @@ public class Key implements KeyListener {
         } else if (key == KeyEvent.VK_RIGHT || key == KeyEvent.VK_A || key == KeyEvent.VK_4) {
             game.moveRight();
         } else if (key == KeyEvent.VK_Z) { // Undo key (Press Z)
-            game.undo();
+            // TODO: game.undo();
         }
     }
+
 
     @Override
     public void keyReleased(KeyEvent e) {
