@@ -1,7 +1,5 @@
 package logic;
 
-import run.Key;
-
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
@@ -19,7 +17,6 @@ public class Game2048 {
     private int score;
     private int highScore;
     private boolean moved;
-
     private JFrame frame;
     private JPanel boardPanel;
 
@@ -59,19 +56,21 @@ public class Game2048 {
             for (int j = 0; j < BOARD_SIZE; j++) {
                 for (int i = 1; i < BOARD_SIZE; i++) {
                     if (board[i][j] != 0) {
-                        int value = board[i][j]; // Lưu giá trị ô hiện tại vào biến value
+                        int value = board[i][j]; // Tạo 1 biến value để nhận giá trị được di chuyển Lưu giá trị ô hiện tại vào biến value
                         int row = i - 1; // Khởi tạo biến row để trỏ tới hàng phía trên ô hiện tại
 
                         // Di chuyển ô hiện tại lên trên đến khi gặp ô có giá trị khác 0 hoặc đến hàng đầu tiên của bảng
                         while (row >= 0 && board[row][j] == 0) {
                             board[row][j] = value; // Di chuyển giá trị ô hiện tại lên trên
                             board[row + 1][j] = 0; // Đặt giá trị của ô dưới bằng 0
-                            row--;
+                            row--; // Di chuyển lên hàng trên để tiếp tục kiêm tra
                             moved = true; // Đánh dấu là đã di chuyển
                         }
 
                         // Nếu gặp ô có giá trị giống nhau, thực hiện việc ghép giá trị ô và cập nhật điểm số
                         if (row >= 0 && board[row][j] == value) {
+                            /** row >= 0: Điều kiện này kiểm tra xem biến row có lớn hơn hoặc bằng 0 hay không. Nếu điều kiện này đúng, có nghĩa là ô hiện tại không ở hàng đầu tiên của bảng.
+                             board[row][j] == 0: Điều kiện này kiểm tra xem giá trị của ô tại hàng row và cột j có bằng 0 hay không. Nếu điều kiện này đúng, có nghĩa là ô đó không có giá trị (rỗng). */
                             board[row][j] *= 2; // Tăng giá trị ô lên gấp đôi
                             board[row + 1][j] = 0; // Đặt giá trị ô dưới bằng 0
                             score += board[row][j]; // Cập nhật điểm số
@@ -203,9 +202,13 @@ public class Game2048 {
     }
 
     private boolean canMoveUp() {
-        for (int j = 0; j < BOARD_SIZE; j++) { // Bắt đầu vòng lặp duyệt qua các cột trên bảng.
-            for (int i = 1; i < BOARD_SIZE; i++) { // Bắt đầu vòng lặp duyệt qua các hàng trong từng cột, bắt đầu từ hàng thứ hai (vì không thể di chuyển ô trên cùng lên trên được).
-                if (board[i][j] != 0 && (board[i - 1][j] == 0 || board[i - 1][j] == board[i][j])) { // Kiểm tra điều kiện để xác định nếu có thể di chuyển ô hiện tại lên trên.
+        // Bắt đầu vòng lặp duyệt qua các cột trên bảng.
+        for (int j = 0; j < BOARD_SIZE; j++) {
+            // Bắt đầu vòng lặp duyệt qua các hàng trong từng cột,
+            // bắt đầu từ hàng thứ hai (vì không thể di chuyển ô trên cùng lên trên được).
+            for (int i = 1; i < BOARD_SIZE; i++) {
+                // Kiểm tra điều kiện để xác định nếu có thể di chuyển ô hiện tại lên trên.
+                if (board[i][j] != 0 && (board[i - 1][j] == 0 || board[i - 1][j] == board[i][j])) {
                     return true; // Nếu tìm thấy ô có giá trị và có thể di chuyển lên trên (ô trên cùng trống hoặc có cùng giá trị), trả về true
                 }
             }
@@ -355,11 +358,20 @@ public class Game2048 {
                 }
             });
 
+            // Tạo nút "Start"
+            JButton start = new JButton("Start");
+            resetButton.addActionListener(new ActionListener() {
+                public void actionPerformed(ActionEvent e) {
+                    start();
+                }
+            });
+
             // Tạo JPanel để chứa nút "Undo" và "Reset"
             JPanel buttonPanel = new JPanel();
             buttonPanel.setLayout(new FlowLayout());
             buttonPanel.add(undoButton);
             buttonPanel.add(resetButton);
+            buttonPanel.add(start);
 
             // Tạo JLabel để hiển thị điểm hiện tại và điểm cao nhất
 //            JLabel currentScoreLabel = new JLabel("High Score: 0");

@@ -1,4 +1,4 @@
-package run;
+package logic;
 
 import logic.Game2048;
 
