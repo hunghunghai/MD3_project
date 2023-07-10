@@ -29,12 +29,12 @@ public class Key implements KeyListener {
             game.moveUp();
         } else if (key == KeyEvent.VK_DOWN || key == KeyEvent.VK_S || key == KeyEvent.VK_2) {
             game.moveDown();
-        } else if (key == KeyEvent.VK_LEFT || key == KeyEvent.VK_D || key == KeyEvent.VK_6) {
+        } else if (key == KeyEvent.VK_LEFT || key == KeyEvent.VK_A || key == KeyEvent.VK_6) {
             game.moveLeft();
-        } else if (key == KeyEvent.VK_RIGHT || key == KeyEvent.VK_A || key == KeyEvent.VK_4) {
+        } else if (key == KeyEvent.VK_RIGHT || key == KeyEvent.VK_D || key == KeyEvent.VK_4) {
             game.moveRight();
         } else if (key == KeyEvent.VK_Z) { // Undo key (Press Z)
-            // TODO: game.undo();
+            game.undo();
         }
     }
 
