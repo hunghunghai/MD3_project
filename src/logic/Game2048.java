@@ -5,42 +5,43 @@ import javax.swing.border.Border;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Scanner;
 import java.util.Stack;
-
+import javax.swing.Timer;
 
 public class Game2048 {
 
-    // khai báo các kiểu dữ liệu cho trò chơi
-    private static final int BOARD_SIZE = 4;
     private int[][] board;
-    private JLabel currentScoreLabel;
-    private JLabel highScoreLabel;
     private int score;
     private int highScore;
+    private boolean canUndo = true;
     private boolean moved;
+    private boolean win;
+    private boolean hasWon = false;
+    boolean combined = false;
+    private static final int BOARD_SIZE = 4;
     private JFrame frame;
     private JPanel boardPanel;
-    private boolean win;
-    private boolean continueButton;
-
-    // Khai báo một ngăn xếp để lưu trữ trạng thái bảng và điểm
-    private Stack<int[][]> previousBoardState;
-    private Stack<Integer> previousScore;
-    private Stack<Integer> previousHighScore;
-
-    // phương thức khỏi tạo trò chơi
+    private final JLabel highScoreLabel;
+    private final JLabel currentScoreLabel;
+    private final Stack<int[][]> previousBoardState;
+    private final Stack<Integer> previousScore;
+    private final Stack<Integer> previousHighScore;
 
     public Game2048() {
         board = new int[BOARD_SIZE][BOARD_SIZE];
         score = 0;
-        highScore = 0;
+        highScore = loadHighScore();
         moved = false;
         win = false;
         currentScoreLabel = new JLabel("Điểm: " + score);
         currentScoreLabel.setFont(new Font("Arial", Font.BOLD, 14));
-        currentScoreLabel.setForeground(Color.GREEN);
+        currentScoreLabel.setForeground(Color.BLACK);
         highScoreLabel = new JLabel("Điểm cao: " + highScore);
         highScoreLabel.setFont(new Font("Arial", Font.BOLD, 14));
         highScoreLabel.setForeground(Color.RED);
@@ -49,24 +50,18 @@ public class Game2048 {
         previousBoardState = new Stack<>();
         previousScore = new Stack<>();
         previousHighScore = new Stack<>();
-
     }
-
-    // phương thứ bắt đầu trò chơi
 
     public void start() {
         EventQueue.invokeLater(() -> {
-            createAndShowFrame(); //gọi để tạo và hiển thị cửa sổ trò chơi.
+            createAndShowFrame();
             printBoard();
-            // Thêm trình nghe phím vào đây để xử lý đầu vào từ người dùng
-            Key keyListener = new Key(this); // Tạo một đối tượng Key
-            frame.addKeyListener(keyListener); // Đăng ký đối tượng Key như một trình nghe sự kiện bàn phím
-            frame.setFocusable(true); //Thiết lập khung để có thể nhận được trỏ chuột và phản hồi các sự kiện phím.
-            frame.requestFocusInWindow(); //Yêu cầu khung nhận trỏ chuột và trở thành cửa sổ đang hoạt động.
+            Key keyListener = new Key(this);
+            frame.addKeyListener(keyListener);
+            frame.setFocusable(true);
+            frame.requestFocusInWindow();
         });
     }
-
-    //phương thức tạo bảng
 
     private void createAndShowFrame() {
         frame = new JFrame("2048");
@@ -76,7 +71,6 @@ public class Game2048 {
         frame.setSize(600, 650);
         frame.setLayout(new BorderLayout());
         frame.setVisible(true);
-
 
         boardPanel = new JPanel();
         boardPanel.setLayout(new GridLayout(BOARD_SIZE, BOARD_SIZE));
@@ -123,399 +117,240 @@ public class Game2048 {
         frame.add(buttonPanel, BorderLayout.SOUTH);
     }
 
-    // phương thức cập nhật điểm
-
     private void updateScoreLabels() {
         currentScoreLabel.setText("Điểm: " + score);
         highScoreLabel.setText("Điểm cao: " + highScore);
         currentScoreLabel.setFont(new Font("Arial", Font.BOLD, 14));
         highScoreLabel.setFont(new Font("Arial", Font.BOLD, 14));
-        System.out.println("Current Score: " + score); // In điểm số ra màn hình console
-        System.out.println("High Score: " + highScore); // In điểm số cao nhất ra màn hình console
     }
 
-    // phương thức di chuyển
-
     public void moveUp() {
-        System.out.println("Up");
         if (canMoveUp()) {
-            // clone lại bước đi
             undoClone();
-            // Di chuyển các ô lên trên
-            for (int j = 0; j < BOARD_SIZE; j++) {
-                for (int i = 1; i < BOARD_SIZE; i++) {
+            for (int i = 1; i < BOARD_SIZE; i++) {
+                for (int j = 0; j < BOARD_SIZE; j++) {
                     if (board[i][j] != 0) {
-                        moveTileUp(i, j);
+                        for (int k = i; k > 0 && (board[k - 1][j] == 0 || board[k - 1][j] == board[k][j]); k--) {
+                            if (board[k - 1][j] == 0) {
+                                board[k - 1][j] = board[k][j];
+                                board[k][j] = 0;
+                                moved = true;
+                            } else if (board[k - 1][j] == board[k][j]) {
+                                System.out.println("cộng ô");
+                                board[k - 1][j] *= 2;
+                                score += board[k - 1][j];
+                                if (score > highScore) {
+                                    highScore = score;
+                                }
+                                board[k][j] = 0;
+                                moved = true;
+                                break;
+                            }
+                        }
                     }
                 }
             }
-            addRandomTile(); // Thêm một ô mới ngẫu nhiên sau mỗi lần di chuyển
-            printBoard(); // In ra bảng sau khi di chuyển
-            isGameOver(); // Kiểm tra xem trò chơi đã kết thúc chưa
+            canUndo = true;
+            addRandomTile();
+            printBoard();
+            isWin();
+            isGameOver();
+            saveHighScore();
         }
     }
 
     public void moveDown() {
-        System.out.println("Down");
         if (canMoveDown()) {
-            // clone lại bước đi
             undoClone();
-            // Di chuyển các ô xuống dưới
             for (int j = 0; j < BOARD_SIZE; j++) {
                 for (int i = BOARD_SIZE - 2; i >= 0; i--) {
                     if (board[i][j] != 0) {
-                        moveTileDown(i, j);
+                        for (int k = i; k < BOARD_SIZE - 1 && (board[k + 1][j] == 0 || board[k + 1][j] == board[k][j]); k++) {
+                            if (board[k + 1][j] == 0) {
+                                board[k + 1][j] = board[k][j];
+                                board[k][j] = 0;
+                                moved = true;
+                            } else if (board[k + 1][j] == board[k][j]) {
+                                board[k + 1][j] *= 2;
+                                score += board[k + 1][j];
+                                if (score > highScore) {
+                                    highScore = score;
+                                }
+                                board[k][j] = 0;
+                                moved = true;
+                                combined = true;
+                                break;
+                            }
+                        }
                     }
                 }
             }
-            addRandomTile(); // Thêm một ô mới ngẫu nhiên sau mỗi lần di chuyển
-            printBoard(); // In ra bảng sau khi di chuyển
-            isGameOver(); // Kiểm tra xem trò chơi đã kết thúc chưa
+            canUndo = true;
+            addRandomTile();
+            printBoard();
+            isWin();
+            isGameOver();
+            saveHighScore();
         }
     }
 
     public void moveLeft() {
-        // clone lại bước đi
         undoClone();
         if (canMoveLeft()) {
-            // Di chuyển các ô sang trái
             for (int i = 0; i < BOARD_SIZE; i++) {
                 for (int j = 1; j < BOARD_SIZE; j++) {
                     if (board[i][j] != 0) {
-                        moveTileLeft(i, j);
+                        for (int k = j; k > 0 && (board[i][k - 1] == 0 || board[i][k - 1] == board[i][k]); k--) {
+                            if (board[i][k - 1] == 0) {
+                                board[i][k - 1] = board[i][k];
+                                board[i][k] = 0;
+                                moved = true;
+                            } else if (board[i][k - 1] == board[i][k]) {
+                                board[i][k - 1] *= 2;
+                                score += board[i][k - 1];
+                                if (score > highScore) {
+                                    highScore = score;
+                                }
+                                board[i][k] = 0;
+                                moved = true;
+                                combined = true;
+                                break;
+                            }
+                        }
                     }
                 }
             }
-            addRandomTile(); // Thêm một ô mới ngẫu nhiên sau mỗi lần di chuyển
-            printBoard(); // In ra bảng sau khi di chuyển
-            isGameOver(); // Kiểm tra xem trò chơi đã kết thúc chưa
+            canUndo = true;
+            addRandomTile();
+            printBoard();
+            isWin();
+            isGameOver();
+            saveHighScore();
         }
     }
 
     public void moveRight() {
-        // clone lại bước đi
         undoClone();
         if (canMoveRight()) {
-            // Di chuyển các ô sang phải
             for (int i = 0; i < BOARD_SIZE; i++) {
-                for (int j = BOARD_SIZE - 2; j >= 0; j--) {
+                for (int j = BOARD_SIZE - 1; j >= 0; j--) {
                     if (board[i][j] != 0) {
-                        moveTileRight(i, j);
+                        for (int k = j; k < BOARD_SIZE - 1 && (board[i][k + 1] == 0 || board[i][k + 1] == board[i][k]); k++) {
+                            if (board[i][k + 1] == 0) {
+                                board[i][k + 1] = board[i][k];
+                                board[i][k] = 0;
+                                moved = true;
+                            } else if (board[i][k + 1] == board[i][k]) {
+                                board[i][k + 1] *= 2;
+                                score += board[i][k + 1];
+                                if (score > highScore) {
+                                    highScore = score;
+                                }
+                                board[i][k] = 0;
+                                moved = true;
+                                combined = true;
+                                break;
+                            }
+                        }
                     }
                 }
             }
-            addRandomTile(); // Thêm một ô mới ngẫu nhiên sau mỗi lần di chuyển
-            printBoard(); // In ra bảng sau khi di chuyển
-            isGameOver(); // Kiểm tra xem trò chơi đã kết thúc chưa
+            canUndo = true;
+            addRandomTile();
+            printBoard();
+            isWin();
+            isGameOver();
+            saveHighScore();
         }
     }
-
-    // phương thức kiểm di chuyển kiểm tra và cộng các ô lại với nhau
-
-    private void moveTileUp(int row, int col) {
-        int value = board[row][col];
-        int newRow = row - 1;
-
-        while (newRow >= 0 && board[newRow][col] == 0) {
-            board[newRow][col] = value;
-            board[newRow + 1][col] = 0;
-            newRow--;
-            moved = true;
-        }
-
-        if (newRow >= 0 && board[newRow][col] == value) {
-            board[newRow][col] *= 2;
-            board[newRow + 1][col] = 0;
-            score += board[newRow][col];
-            if (score > highScore) {
-                highScore = score;
-            }
-            moved = true;
-            updateScoreLabels();
-            if (isWin(win) && !continueButton && !win) {
-                JOptionPane.showMessageDialog(frame, "Bạn đã đạt 2048", "Win", JOptionPane.INFORMATION_MESSAGE);
-                win = true;
-            }
-        }
-    }
-
-    private void moveTileDown(int row, int col) {
-        int value = board[row][col];
-        int newRow = row + 1;
-
-        while (newRow < BOARD_SIZE && board[newRow][col] == 0) {
-            board[newRow][col] = value;
-            board[newRow - 1][col] = 0;
-            newRow++;
-            moved = true;
-        }
-
-        if (newRow < BOARD_SIZE && board[newRow][col] == value) {
-            board[newRow][col] *= 2;
-            board[newRow - 1][col] = 0;
-            score += board[newRow][col];
-            if (score > highScore) {
-                highScore = score;
-            }
-            moved = true;
-            updateScoreLabels();
-            if (isWin(win) && !continueButton && !win) {
-                JOptionPane.showMessageDialog(frame, "Bạn đã đạt 2048", "Win", JOptionPane.INFORMATION_MESSAGE);
-                win = true;
-            }
-        }
-    }
-
-    private void moveTileLeft(int row, int col) {
-        int value = board[row][col];
-        int newCol = col - 1;
-
-        while (newCol >= 0 && board[row][newCol] == 0) {
-            board[row][newCol] = value;
-            board[row][newCol + 1] = 0;
-            newCol--;
-            moved = true;
-        }
-
-        if (newCol >= 0 && board[row][newCol] == value) {
-            board[row][newCol] *= 2;
-            board[row][newCol + 1] = 0;
-            score += board[row][newCol];
-            if (score > highScore) {
-                highScore = score;
-            }
-            moved = true;
-            updateScoreLabels();
-            if (isWin(win) && !continueButton && !win) {
-                JOptionPane.showMessageDialog(frame, "Bạn đã đạt 2048", "Win", JOptionPane.INFORMATION_MESSAGE);
-                win = true;
-            }
-        }
-    }
-
-    private void moveTileRight(int row, int col) {
-        int value = board[row][col];
-        int newCol = col + 1;
-
-        while (newCol < BOARD_SIZE && board[row][newCol] == 0) {
-            board[row][newCol] = value;
-            board[row][newCol - 1] = 0;
-            newCol++;
-            moved = true;
-        }
-
-        if (newCol < BOARD_SIZE && board[row][newCol] == value) {
-            board[row][newCol] *= 2;
-            board[row][newCol - 1] = 0;
-            score += board[row][newCol];
-            if (score > highScore) {
-                highScore = score;
-            }
-            moved = true;
-            updateScoreLabels();
-            if (isWin(win) && !continueButton && !win) {
-                JOptionPane.showMessageDialog(frame, "Bạn đã đạt 2048", "Win", JOptionPane.INFORMATION_MESSAGE);
-                win = true;
-            }
-        }
-    }
-
-    // phương thức kiểm tra xem còn di chuyển được nữa không
 
     private boolean canMoveUp() {
-        System.out.println(" kiểm tra Up");
-        // Bắt đầu vòng lặp duyệt qua các cột trên bảng.
         for (int j = 0; j < BOARD_SIZE; j++) {
-            // Bắt đầu vòng lặp duyệt qua các hàng trong từng cột,
-            // bắt đầu từ hàng thứ hai (vì không thể di chuyển ô trên cùng lên trên được).
             for (int i = 1; i < BOARD_SIZE; i++) {
-                // Kiểm tra điều kiện để xác định nếu có thể di chuyển ô hiện tại lên trên.
                 if (board[i][j] != 0 && (board[i - 1][j] == 0 || board[i - 1][j] == board[i][j])) {
-                    return true; // Nếu tìm thấy ô có giá trị và có thể di chuyển lên trên (ô trên cùng trống hoặc có cùng giá trị), trả về true
+                    return true;
                 }
             }
         }
-        return false; // Nếu không tìm thấy ô thỏa mãn điều kiện, trả về false
+        return false;
     }
 
     private boolean canMoveDown() {
-        System.out.println("kiểm tra Down");
-        for (int j = 0; j < BOARD_SIZE; j++) { // Bắt đầu vòng lặp duyệt qua các cột trên bảng.
-            for (int i = BOARD_SIZE - 2; i >= 0; i--) { // Bắt đầu vòng lặp duyệt qua các hàng trong từng cột, bắt đầu từ hàng kế cuối (vì không thể di chuyển ô dưới cùng xuống dưới được).
-                if (board[i][j] != 0 && (board[i + 1][j] == 0 || board[i + 1][j] == board[i][j])) { // Kiểm tra điều kiện để xác định nếu có thể di chuyển ô hiện tại xuống dưới.
-                    return true; // Nếu tìm thấy ô có giá trị và có thể di chuyển xuống dưới (ô dưới cùng trống hoặc có cùng giá trị), trả về true.
+        for (int j = 0; j < BOARD_SIZE; j++) {
+            for (int i = BOARD_SIZE - 2; i >= 0; i--) {
+                if (board[i][j] != 0 && (board[i + 1][j] == 0 || board[i + 1][j] == board[i][j])) {
+                    return true;
                 }
             }
         }
-        return false; // Nếu không tìm thấy ô thỏa mãn điều kiện, trả về false.
+        return false;
     }
 
     private boolean canMoveLeft() {
-        System.out.println("kiểm tra Left");
-        for (int i = 0; i < BOARD_SIZE; i++) { // Bắt đầu vòng lặp duyệt qua các hàng trên bảng.
-            for (int j = 1; j < BOARD_SIZE; j++) { // Bắt đầu vòng lặp duyệt qua các cột trong từng hàng, bắt đầu từ cột thứ hai (vì không thể di chuyển ô bên trái của cột đầu tiên sang trái được).
-                if (board[i][j] != 0 && (board[i][j - 1] == 0 || board[i][j - 1] == board[i][j])) { // Kiểm tra điều kiện để xác định nếu có thể di chuyển ô hiện tại sang trái.
-                    return true; // Nếu tìm thấy ô có giá trị và có thể di chuyển sang trái (ô bên trái trống hoặc có cùng giá trị), trả về true.
+        for (int i = 0; i < BOARD_SIZE; i++) {
+            for (int j = 1; j < BOARD_SIZE; j++) {
+                if (board[i][j] != 0 && (board[i][j - 1] == 0 || board[i][j - 1] == board[i][j])) {
+                    return true;
                 }
             }
         }
-        return false; // Nếu không tìm thấy ô thỏa mãn điều kiện, trả về false.
+        return false;
     }
 
     private boolean canMoveRight() {
-        System.out.println("kiểm tra Right");
-        for (int i = 0; i < BOARD_SIZE; i++) { // Bắt đầu vòng lặp duyệt qua các hàng trên bảng.
-            for (int j = BOARD_SIZE - 2; j >= 0; j--) { // Bắt đầu vòng lặp duyệt qua các cột trong từng hàng, bắt đầu từ cột thứ hai từ phải sang trái (vì không thể di chuyển ô bên phải của cột cuối cùng sang phải được).
-                if (board[i][j] != 0 && (board[i][j + 1] == 0 || board[i][j + 1] == board[i][j])) { // Kiểm tra điều kiện để xác định nếu có thể di chuyển ô hiện tại sang phải.
-                    return true; // Nếu tìm thấy ô có giá trị và có thể di chuyển sang phải (ô bên phải trống hoặc có cùng giá trị), trả về true.
+        for (int i = 0; i < BOARD_SIZE; i++) {
+            for (int j = BOARD_SIZE - 2; j >= 0; j--) {
+                if (board[i][j] != 0 && (board[i][j + 1] == 0 || board[i][j + 1] == board[i][j])) {
+                    return true;
                 }
             }
         }
-        return false; // Nếu không tìm thấy ô thỏa mãn điều kiện, trả về false.
+        return false;
     }
 
-    // phương thức lưu bước đi gần nhất
-
-    public void undoClone() {
-        int[][] oldBoard = new int[BOARD_SIZE][BOARD_SIZE];
-        for (int i = 0; i < oldBoard.length; i++) {
-            oldBoard[i] = board[i].clone();
-        }
-        previousBoardState.push(oldBoard);
-        previousScore.push(score);
-        previousHighScore.push(highScore);
-    }
-
-    // Phương thức undo()
-    public void undo() {
-        if (!previousBoardState.isEmpty() && !previousScore.isEmpty() && !previousHighScore.isEmpty()) {
-            board = previousBoardState.pop().clone();
-            score = previousScore.pop();
-            highScore = previousHighScore.pop();
-            updateScoreLabels();
-            printBoard();
-
-            frame.setFocusable(true); //Thiết lập khung để có thể nhận được trỏ chuột và phản hồi các sự kiện phím.
-            frame.requestFocusInWindow(); //Yêu cầu khung nhận trỏ chuột và trở thành cửa sổ đang hoạt động.
-        }
-    }
-
-    // phương thức bắt đầu lại trò chơi
-
-    private void reset() {
-        score = 0;
-        moved = false;
-        win = false;
-        continueButton = false;
-        currentScoreLabel.setText("Điểm: " + score);
-        // tạo lại giá trị rỗng cho các ô trên màn hình
-        for (int i = 0; i < BOARD_SIZE; i++) {
-            for (int j = 0; j < BOARD_SIZE; j++) {
-                board[i][j] = 0;
-            }
-        }
-        // Thêm hai ô mới
-        addRandomTile();
-        addRandomTile();
-
-        // in lại bàn cờ
-        printBoard();
-
-        // Cập nhật lại điểm
-        updateScoreLabels();
-
-        frame.setFocusable(true); //Thiết lập khung để có thể nhận được trỏ chuột và phản hồi các sự kiện phím.
-        frame.requestFocusInWindow(); //Yêu cầu khung nhận trỏ chuột và trở thành cửa sổ đang hoạt động.
-    }
-
-    // phương túc tạo mới 1 ô ở vị trí ngẫu nhiên
 
     private void addRandomTile() {
-        List<Point> availablePoints = new ArrayList<>();  // Danh sách các ô trống
-
-        // Tìm các ô trống và thêm vào danh sách
+        List<int[]> emptyTiles = new ArrayList<>();
         for (int i = 0; i < BOARD_SIZE; i++) {
             for (int j = 0; j < BOARD_SIZE; j++) {
                 if (board[i][j] == 0) {
-                    availablePoints.add(new Point(i, j));  // Thêm tọa độ của ô trống vào danh sách
+                    emptyTiles.add(new int[]{i, j});
                 }
             }
         }
-
-        if (!availablePoints.isEmpty()) {
-            int index = (int) (Math.random() * availablePoints.size());
-            Point point = availablePoints.get(index);
-            board[point.x][point.y] = Math.random() < 0.9 ? 2 : 4;
+        if (emptyTiles.size() > 0) {
+            int[] randomTile = emptyTiles.get((int) (Math.random() * emptyTiles.size()));
+            board[randomTile[0]][randomTile[1]] = Math.random() < 0.9 ? 2 : 4;
         }
     }
-
-    // phương thức kiểm tra chiến thắng
-
-    private boolean isWin(boolean win) {
-        for (int i = 0; i < BOARD_SIZE; i++) {
-            for (int j = 0; j < BOARD_SIZE; j++) {
-                if (board[i][j] == 2048) {
-                    win = true; // Nếu ô có giá trị 2048 được tìm thấy, trả về true
-                }
-            }
-        }
-        return win; // Nếu không tìm thấy ô có giá trị 2048, trả về false
-    }
-
-    // phương thức kiểm tra trò chơi kết thúc
-
-    private void isGameOver() {
-        if (!canMoveUp() && !canMoveDown() && !canMoveLeft() && !canMoveRight()) {
-            ImageIcon iconGameOver = new ImageIcon("C:\\Users\\Admin\\Desktop\\GITCLONE\\MD3_project\\src\\overGame.png");
-            Image image = iconGameOver.getImage();
-            Image scaledImage = image.getScaledInstance(300, 200, Image.SCALE_AREA_AVERAGING);
-            ImageIcon scaledIcon = new ImageIcon(scaledImage);
-
-            JPanel panel = new JPanel();
-            panel.setLayout(new BorderLayout());
-            panel.add(new JLabel(scaledIcon), BorderLayout.CENTER);
-
-            Object[] options = {"Chơi lại", "Thoát"};
-            int choice = JOptionPane.showOptionDialog(frame, panel, "Game Over", JOptionPane.YES_NO_OPTION, JOptionPane.PLAIN_MESSAGE, null, options, options[0]);
-
-            if (choice == JOptionPane.YES_OPTION) {
-                reset();
-                continueButton = true;
-            } else {
-                System.out.println("Trò chơi kết thúc! Điểm của bạn là: " + score);
-                // System.exit(0);
-            }
-        }
-    }
-
-    // phương thức in ra bảng
 
     private void printBoard() {
         boardPanel.removeAll();
+        boardPanel.revalidate();
+        boardPanel.repaint();
 
         for (int i = 0; i < BOARD_SIZE; i++) {
             for (int j = 0; j < BOARD_SIZE; j++) {
-                JLabel label = new JLabel(board[i][j] == 0 ? "" : String.valueOf(board[i][j]));
-                label.setFont(new Font("Arial", Font.BOLD, 36));
+                int value = board[i][j];
+                String text = (value != 0) ? Integer.toString(value) : ""; // Sử dụng chuỗi rỗng nếu là số 0
+                JLabel label = new JLabel(text);
                 label.setHorizontalAlignment(SwingConstants.CENTER);
                 label.setOpaque(true);
-                label.setBackground(getTileColor(board[i][j]));
-                Border border = BorderFactory.createLineBorder(Color.WHITE, 1);
-                label.setBorder(border);
+                label.setBackground(getTileColor(value));
+                label.setForeground(getTileTextColor(value));
+                label.setFont(new Font("Arial", Font.BOLD, 30));
+                label.setBorder(BorderFactory.createLineBorder(Color.GRAY, 1));
+                label.setPreferredSize(new Dimension(150, 150));
                 boardPanel.add(label);
             }
         }
 
-        boardPanel.revalidate();
-        boardPanel.repaint();
+        updateScoreLabels();
+        frame.pack();
     }
 
-    // phương thức tạo màu cho các ô trên bảng
-
-    Color getTileColor(int value) {
+    private Color getTileColor(int value) {
         switch (value) {
-            case 0:
-                return new Color(255, 255, 255);
             case 2:
                 return new Color(238, 228, 218);
             case 4:
@@ -539,8 +374,127 @@ public class Game2048 {
             case 2048:
                 return new Color(237, 194, 46);
             default:
-                return new Color(207, 239, 65);
+                return new Color(205, 193, 180);
         }
     }
-    // Các phương thức trợ giúp bổ sung cho logic trò chơi có thể được thêm vào đây
+
+    private Color getTileTextColor(int value) {
+        if (value < 16) {
+            return new Color(119, 110, 101);
+        }
+        return new Color(249, 246, 242);
+    }
+
+    private void isGameOver() {
+        boolean gameOver = true;
+        for (int i = 0; i < BOARD_SIZE; i++) {
+            for (int j = 0; j < BOARD_SIZE; j++) {
+                if (board[i][j] == 0 || (i > 0 && board[i][j] == board[i - 1][j]) || (i < BOARD_SIZE - 1 && board[i][j] == board[i + 1][j]) || (j > 0 && board[i][j] == board[i][j - 1]) || (j < BOARD_SIZE - 1 && board[i][j] == board[i][j + 1])) {
+                    gameOver = false;
+                    break;
+                }
+            }
+        }
+        if (gameOver) {
+            JOptionPane.showMessageDialog(frame, "Bạn đã thua rồi! \nĐiểm của bạn là: " + score, "Trò chơi kết thúc", JOptionPane.PLAIN_MESSAGE);
+            // Lưu điểm cao nhất vào file
+            saveHighScore();
+        }
+    }
+
+    private void isWin() {
+        for (int i = 0; i < BOARD_SIZE; i++) {
+            for (int j = 0; j < BOARD_SIZE; j++) {
+                if (board[i][j] == 2048) {
+                    win = true;
+                    break;
+                }
+            }
+        }
+        if (win && !hasWon) { // Nếu đã chiến thắng và chưa hiển thị thông báo chiến thắng
+            JOptionPane.showMessageDialog(frame, "Bạn đã chiến thắng!", "Chúc mừng!", JOptionPane.PLAIN_MESSAGE);
+            hasWon = true; // Đánh dấu là đã hiển thị thông báo chiến thắng
+        }
+    }
+
+    public void undo() {
+        if (canUndo && previousBoardState.size() >= 1) { // Chỉ phục hồi nếu có ít nhất 1 trạng thái trước đó
+            board = previousBoardState.pop();
+            score = previousScore.pop();
+            highScore = previousHighScore.pop();
+            moved = true;
+            printBoard();
+            frame.setFocusable(true);
+            frame.requestFocusInWindow();
+            System.out.println("quay lại bước trước đó!");
+
+            // Không cho phép phục hồi thêm nữa
+            canUndo = false;
+        } else {
+            System.out.println("Chỉ được quay lại 1 bước!!!");
+        }
+    }
+
+    private void undoClone() {
+        previousBoardState.push(cloneBoard(board));
+        previousScore.push(score);
+        previousHighScore.push(highScore);
+    }
+
+    private int[][] cloneBoard(int[][] board) {
+        int[][] clone = new int[BOARD_SIZE][BOARD_SIZE];
+        for (int i = 0; i < BOARD_SIZE; i++) {
+            System.arraycopy(board[i], 0, clone[i], 0, BOARD_SIZE);
+        }
+        return clone;
+    }
+
+    private void reset() {
+        score = 0;
+        board = new int[BOARD_SIZE][BOARD_SIZE];
+        canUndo = true;
+        addRandomTile();
+        addRandomTile();
+        printBoard();
+        frame.setFocusable(true);
+        frame.requestFocusInWindow();
+        System.out.println("Game reset!");
+    }
+
+    private void saveHighScore() {
+        try {
+            // Tạo một đối tượng PrintWriter để ghi dữ liệu vào file
+            PrintWriter writer = new PrintWriter("C:\\Users\\Admin\\Desktop\\GITCLONE\\MD3_project\\src\\database\\Score.txt");
+
+            // Ghi điểm cao nhất vào file
+            writer.println(highScore);
+
+            // Đóng đối tượng PrintWriter để lưu thay đổi vào file
+            writer.close();
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private int loadHighScore() {
+        File file = new File("C:\\Users\\Admin\\Desktop\\GITCLONE\\MD3_project\\src\\database\\Score.txt");
+        if (!file.exists()) {
+            return 0;
+        }
+
+        try {
+            Scanner scanner = new Scanner(file);
+            if (scanner.hasNextInt()) {
+                int highScore = scanner.nextInt();
+                scanner.close();
+                return highScore;
+            }
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+
+        return 0;
+    }
+
+
 }
